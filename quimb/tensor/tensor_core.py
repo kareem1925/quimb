@@ -20,6 +20,7 @@ import scipy.linalg.interpolative as sli
 
 from ..accel import prod, njit, realify_scalar, vdot
 from ..linalg.base_linalg import norm_fro_dense
+from ..linalg.rand_linalg import rsvd  # , rchol
 from ..utils import raise_cant_find_library_function, functions_equal, has_cupy
 
 try:
@@ -549,6 +550,23 @@ def _array_split_isvd(x, cutoff=0.0, cutoff_mode=2, max_bond=-1, absorb=0):
     return _trim_and_renorm_SVD(U, s, V, cutoff, cutoff_mode, max_bond, absorb)
 
 
+def _array_split_rsvd(x, cutoff=0.0, cutoff_mode=2, max_bond=-1, absorb=0):
+    """SVD-decomposition using randomized methods (due to Halko). Allows the
+    computation of only a certain number of singular values, e.g. max_bond,
+    from the get-go, and is thus more efficient. Can also supply
+    ``scipy.sparse.linalg.LinearOperator``.
+    """
+    k = _choose_k(x, cutoff, max_bond)
+
+    if k == 'full':
+        if not isinstance(x, np.ndarray):
+            x = x.to_dense()
+        return _array_split_svd(x, cutoff, cutoff_mode, max_bond, absorb)
+
+    U, s, V = rsvd(x, k)
+    return _trim_and_renorm_SVD(U, s, V, cutoff, cutoff_mode, max_bond, absorb)
+
+
 def _array_split_eigsh(x, cutoff=0.0, cutoff_mode=2, max_bond=-1, absorb=0):
     """SVD-decomposition using iterative hermitian eigen decomp, thus assuming
     that ``x`` is hermitian. Allows the computation of only a certain number of
@@ -684,6 +702,7 @@ def tensor_split(T, left_inds, method='svd', max_bond=None, absorb='both',
         'cholesky': _array_split_cholesky,
         'isvd': _array_split_isvd,
         'svds': _array_split_svds,
+        'rsvd': _array_split_rsvd,
         'eigsh': _array_split_eigsh,
     }[method](array, **opts)
 
@@ -2585,13 +2604,16 @@ class TensorNetwork(object):
             if not isinstance(A, np.ndarray):
                 A = A.to_dense()
 
-        U, V = {'svd': _array_split_svd,
-                'eig': _array_split_eig,
-                'eigh': _array_split_eigh,
-                'cholesky': _array_split_cholesky,
-                'isvd': _array_split_isvd,
-                'svds': _array_split_svds,
-                'eigsh': _array_split_eigsh}[method](A, cutoff=eps, **opts)
+        U, V = {
+            'svd': _array_split_svd,
+            'eig': _array_split_eig,
+            'eigh': _array_split_eigh,
+            'cholesky': _array_split_cholesky,
+            'isvd': _array_split_isvd,
+            'svds': _array_split_svds,
+            'rsvd': _array_split_rsvd,
+            'eigsh': _array_split_eigsh,
+        }[method](A, cutoff=eps, **opts)
 
         U = U.reshape(*left_shp, -1)
         V = V.reshape(-1, *right_shp)

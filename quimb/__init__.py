@@ -80,6 +80,7 @@ from .linalg.base_linalg import (
     expm_multiply,
     Lazy,
 )
+from .linalg.rand_linalg import rsvd, rchol
 from .linalg.mpi_launcher import get_mpi_pool
 
 # Generating objects
@@ -286,8 +287,11 @@ __all__ = [
     'eigvecsh_window',
     'svd',
     'svds',
+    'rsvd',
     'norm',
     'Lazy',
+    'rsvd',
+    'rchol',
     # Gen ------------------------------------------------------------------- #
     'spin_operator',
     'pauli',
